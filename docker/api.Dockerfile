@@ -45,6 +45,22 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
+# O `setuptools` do Python **do sistema** sai da imagem final.
+#
+# A aplicação roda inteiramente do `/opt/venv`, que tem o seu próprio
+# (atualizado no estágio de build). O do sistema fica para trás na versão que
+# a imagem base trouxer — hoje a 70.3.0, com duas HIGH, entre elas a
+# CVE-2025-47273 de travessia de caminho — e reprova o portão do Trivy sem que
+# uma única linha do projeto o utilize.
+#
+# Remover é melhor que atualizar: o que não está na imagem não volta a virar
+# CVE na próxima publicação. O `|| true` cobre a base parar de trazê-lo, coisa
+# que as imagens `python:` vêm fazendo aos poucos.
+# Caminho absoluto de propósito: o `PATH` desta imagem já aponta para
+# `/opt/venv/bin`, que só é copiado mais abaixo. Escrever `python` aqui
+# funcionaria por acidente de ordem das camadas.
+RUN /usr/local/bin/python -m pip uninstall -y setuptools wheel 2>/dev/null || true
+
 # Usuário sem privilégios, criado antes de copiar o código.
 #
 # Contêiner que roda como root significa que uma falha de execução remota na
