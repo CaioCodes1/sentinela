@@ -66,7 +66,9 @@ select = [
     "RUF",
 ]
 ignore = [
-    "S101", # assert: legítimo dentro de tests/
+    # S101 (assert) NÃO entra aqui: ignorado globalmente, ele some também do
+    # código de produção, onde `assert` desaparece com `python -O`. Fica em
+    # `per-file-ignores` de `tests/**`, que é onde assert é o idioma correto.
     "B008", # Depends(...) no default é o idioma do FastAPI
 ]
 
@@ -74,6 +76,7 @@ ignore = [
 # `tests/**` e não `tests/*`: o glob de um asterisco casa só os filhos
 # diretos, e a suíte inteira vive em `tests/unit/` e `tests/integration/`.
 "tests/**" = [
+    "S101",  # assert é o modo de asserção do pytest
     "S105",  # senha literal em teste é o próprio dado do teste
     "S106",
     "S311",

@@ -84,43 +84,56 @@ class SqlAlchemyUnitOfWork:
         self.job_runs = SqlJobRunRepository(self.session)
         return self
 
+    def _active_session(self) -> Session:
+        """A sessão em uso, ou um erro que diz o que aconteceu.
+
+        Antes isto era `assert self.session is not None`, que o mypy aceita mas
+        **desaparece com `python -O`**. Sem o assert, usar a unidade de trabalho
+        fora do `with` produziria `AttributeError: 'NoneType' object has no
+        attribute 'rollback'` — erro que não aponta para a causa. Levantar
+        explicitamente mantém o estreitamento de tipo e sobrevive à otimização.
+        """
+        if self.session is None:
+            raise RuntimeError(
+                "unidade de trabalho usada fora do `with`: nenhuma sessão aberta"
+            )
+        return self.session
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        assert self.session is not None
+        session = self._active_session()
         try:
             # Rollback incondicional na saída. Se `commit()` já rodou, este
             # rollback não tem efeito; se ninguém comitou, ele desfaz — e é
             # essa a rede de segurança que impede uma escrita parcial de ficar
             # pendurada na conexão devolvida ao pool.
-            self.session.rollback()
+            session.rollback()
         finally:
-            self.session.close()
+            session.close()
             self.session = None
 
     def commit(self) -> None:
-        assert self.session is not None
+        session = self._active_session()
         try:
-            self.session.commit()
+            session.commit()
         except StaleDataError as exc:
             # A trava otimista disparou: alguém gravou este contrato entre a
             # leitura e a escrita. Traduzido para erro de domínio aqui, para
             # que a camada de serviço não conheça exceções do ORM.
-            self.session.rollback()
+            session.rollback()
             raise ConcurrencyError(
                 "o registro foi alterado por outra operação; recarregue e tente de novo"
             ) from exc
 
     def rollback(self) -> None:
-        assert self.session is not None
-        self.session.rollback()
+        self._active_session().rollback()
 
     def flush(self) -> None:
-        assert self.session is not None
-        self.session.flush()
+        self._active_session().flush()
 
     def try_advisory_lock(self, key: str) -> bool:
         """`pg_try_advisory_xact_lock`: pega ou desiste, nunca espera.
@@ -134,12 +147,12 @@ class SqlAlchemyUnitOfWork:
         Não espera porque a semântica desejada é "se outra réplica já está
         fazendo isso, não faça de novo" — e não "faça de novo daqui a pouco".
         """
-        assert self.session is not None
+        session = self._active_session()
         # O PostgreSQL só aceita chave numérica de 64 bits; o hash converte um
         # nome legível em número estável entre processos e reinicializações.
         digest = hashlib.sha256(key.encode("utf-8")).digest()
         lock_id = int.from_bytes(digest[:8], "big", signed=True)
-        result = self.session.execute(
+        result = session.execute(
             text("SELECT pg_try_advisory_xact_lock(:lock_id)"), {"lock_id": lock_id}
         ).scalar_one()
         if not result:

@@ -143,8 +143,12 @@ jobs:
       # reação natural (baixar o severity) transforma o portão em enfeite.
       #
       # Etapa 1: gera o SARIF, sem bloquear.
+      # A referência é o SHA do commit, com a versão no comentário. Duas razões:
+      # a tag `0.28.0` **sem o `v`** não existe mais no repositório da action e
+      # fazia o job inteiro falhar em "Set up job", antes de qualquer passo; e
+      # uma tag pode ser reapontada para outro commit, enquanto o SHA não.
       - name: Relatório de vulnerabilidades (informativo)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: sentinela-api:ci
           format: sarif
@@ -152,7 +156,7 @@ jobs:
 
       # Etapa 2: o portão de verdade.
       - name: Portão — HIGH e CRITICAL com correção disponível
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: sentinela-api:ci
           format: table
