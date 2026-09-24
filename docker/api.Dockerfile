@@ -21,6 +21,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# O pip sai do venv assim que termina de instalar, e isso não é economia de
+# espaço. Em `pip/_vendor/vendor.txt` o pip declara as bibliotecas que leva
+# embutidas, e o scanner lê esse arquivo como se fossem dependências do
+# projeto: era dali que vinham `msgpack 1.1.2` e `setuptools 70.3.0`, as duas
+# HIGH que reprovavam o portão. Nenhuma é importada por uma linha sequer da
+# aplicação, e nenhuma sairia atualizando dependência do projeto.
+#
 # O `pyproject.toml` entra sozinho primeiro: enquanto ele não mudar, o Docker
 # reaproveita a camada de dependências. Copiar o código junto invalidaria o
 # cache a cada alteração de uma linha e reinstalaria tudo.
@@ -28,7 +35,11 @@ COPY pyproject.toml README.md ./
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
     && mkdir -p app && touch app/__init__.py \
-    && /opt/venv/bin/pip install .
+    && /opt/venv/bin/pip install . \
+    && /opt/venv/bin/pip uninstall -y pip setuptools wheel \
+    && rm -rf /opt/venv/lib/python3.12/site-packages/pip \
+              /opt/venv/lib/python3.12/site-packages/pip-*.dist-info \
+              /opt/venv/bin/pip /opt/venv/bin/pip3 /opt/venv/bin/pip3.12
 
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim-bookworm AS runtime
@@ -45,22 +56,17 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# O pip do Python **do sistema** sai da imagem final.
-#
-# Não é higiene abstrata: o pip 25.0.1 da imagem base empacota cópias próprias
-# de outras bibliotecas em `pip/_vendor/`, e são elas que aparecem no scanner —
-# msgpack 1.1.2 e o `pkg_resources` do setuptools 70.3.0, duas HIGH. Nenhuma é
-# dependência deste projeto: a aplicação roda do `/opt/venv`, que traz o seu
-# próprio pip, mais novo e sem esses achados.
-#
-# Remover também fecha uma porta: contêiner com instalador de pacotes à mão dá
-# a quem conseguir execução remota um jeito pronto de buscar ferramenta nova.
-# É o mesmo motivo de o compilador ficar no estágio de build.
+# O pip do Python **do sistema** sai pelo mesmo motivo, e por mais um:
+# contêiner com instalador de pacotes à mão dá a quem conseguir execução
+# remota um jeito pronto de buscar ferramenta nova. É o mesmo raciocínio que
+# mantém o compilador no estágio de build.
 #
 # Caminho absoluto de propósito: o `PATH` desta imagem já aponta para
 # `/opt/venv/bin`, que só é copiado mais abaixo. Escrever `python` aqui
 # funcionaria por acidente de ordem das camadas.
-RUN /usr/local/bin/python -m pip uninstall -y pip setuptools wheel 2>/dev/null || true     && rm -rf /usr/local/lib/python3.12/site-packages/pip               /usr/local/lib/python3.12/site-packages/pip-*.dist-info
+RUN /usr/local/bin/python -m pip uninstall -y pip setuptools wheel 2>/dev/null || true \
+    && rm -rf /usr/local/lib/python3.12/site-packages/pip \
+              /usr/local/lib/python3.12/site-packages/pip-*.dist-info
 
 # Usuário sem privilégios, criado antes de copiar o código.
 #
