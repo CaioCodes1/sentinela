@@ -94,9 +94,7 @@ class SqlAlchemyUnitOfWork:
         explicitamente mantém o estreitamento de tipo e sobrevive à otimização.
         """
         if self.session is None:
-            raise RuntimeError(
-                "unidade de trabalho usada fora do `with`: nenhuma sessão aberta"
-            )
+            raise RuntimeError("unidade de trabalho usada fora do `with`: nenhuma sessão aberta")
         return self.session
 
     def __exit__(
