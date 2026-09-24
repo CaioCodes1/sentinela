@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.deps import AppContainer, get_container, set_container
+from app.api.docs import router as docs_router
 from app.api.middleware import (
     BodySizeLimitMiddleware,
     RateLimitMiddleware,
@@ -98,7 +99,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Documentação fechada em produção: ela enumera todos os endpoints,
         # schemas e exemplos para quem não está autenticado — um mapa pronto
         # para quem estiver procurando superfície de ataque.
-        docs_url="/docs" if settings.docs_enabled else None,
+        # `docs_url=None` mesmo com a documentação ligada: a página do Swagger
+        # é servida por `app/api/docs.py`, para que a CSP possa declarar o hash
+        # do script que ela embute. Ver `SecurityHeadersMiddleware`.
+        docs_url=None,
         redoc_url="/redoc" if settings.docs_enabled else None,
         openapi_url="/openapi.json" if settings.docs_enabled else None,
         contact={"name": "Sentinela", "url": "https://github.com/CaioCodes1"},
@@ -143,6 +147,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(api_router)
+    if settings.docs_enabled:
+        app.include_router(docs_router)
 
     return app
 

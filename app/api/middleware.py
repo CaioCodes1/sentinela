@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp
 
+from app.api.docs import hash_do_swagger
 from app.core.config import Settings
 from app.core.context import RequestContext, new_request_id, use_context
 from app.core.errors import problem
@@ -100,6 +101,19 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     Solução: CSP estrita para tudo, com uma exceção declarada para os caminhos
     da documentação. É melhor que afrouxar a política inteira por causa do
     `/docs`.
+
+    **A primeira versão desta exceção ainda deixava a página em branco**, e só
+    foi descoberto ao abrir no navegador, em 24/09/2026. Ela liberava o CDN em
+    `script-src`, mas o HTML que o FastAPI gera inicializa o Swagger UI com um
+    `<script>` **na própria página** — que `script-src` bloqueia sem
+    `'unsafe-inline'`, sem nonce e sem hash. O console dizia exatamente isso; a
+    tela, nada.
+
+    A saída aqui é o **hash** do script, calculado do HTML que a aplicação
+    realmente serve (ver `app/api/docs.py`). `'unsafe-inline'` resolveria em uma
+    linha e valeria para qualquer script injetado na página; o hash vale para
+    aquele script e mais nenhum, e se o FastAPI mudar o HTML o hash acompanha
+    sozinho.
     """
 
     def __init__(self, app: ASGIApp, *, is_production: bool) -> None:
@@ -114,7 +128,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "img-src 'self' data: https://fastapi.tiangolo.com; "
-                "script-src 'self' https://cdn.jsdelivr.net; "
+                f"script-src 'self' https://cdn.jsdelivr.net {hash_do_swagger()}; "
                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
                 "font-src 'self' https://cdn.jsdelivr.net; "
                 "connect-src 'self'"
