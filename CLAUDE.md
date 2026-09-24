@@ -7,7 +7,7 @@ para quem vai **usar**; este arquivo é para quem vai **alterar**.
 
 ```bash
 # venv desta máquina
-.venv/Scripts/python.exe -m pytest -q          # 323 testes, 92% de cobertura
+.venv/Scripts/python.exe -m pytest -q          # 326 testes, 92% de cobertura
 .venv/Scripts/python.exe -m ruff check .
 .venv/Scripts/python.exe -m ruff format .
 .venv/Scripts/python.exe -m mypy app
@@ -32,7 +32,7 @@ Bancos `sentinela` e `sentinela_test`, usuário `sentinela`/`sentinela`. O `.env
 local já aponta para lá.
 
 Sem `TEST_DATABASE_URL`, os 91 testes de integração são **ignorados** com uma
-mensagem — não falham. Se a contagem cair de 323 para 232, é isso.
+mensagem — não falham. Se a contagem cair de 326 para 235, é isso.
 
 ## Docker nesta máquina
 
@@ -109,12 +109,12 @@ destes pontos. Os que mais custaram:
 
 ## Estado atual
 
-- 323 testes verdes (232 unitários, 91 de integração), 92% de cobertura.
+- 326 testes verdes (235 unitários, 91 de integração), 92% de cobertura.
 - `ruff check`, `ruff format --check`, `mypy app` e `alembic check` limpos.
 - Pilha Docker construída e validada de ponta a ponta: migrations aplicadas,
   admin criado, job executado, 51 notificações entregues ao provedor simulado, e
   a segunda execução não gerou nenhuma duplicata.
-- **Não versionado ainda**: não há repositório git iniciado nem remoto.
+- Publicado em **github.com/CaioCodes1/sentinela**, com o CI verde nos quatro jobs.
 
 ## Pendências conhecidas
 

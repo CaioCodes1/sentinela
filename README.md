@@ -16,11 +16,30 @@ JWT com rotação de refresh · RBAC · bcrypt · Pytest · Ruff · mypy
 
 | | |
 |---|---|
-| **Testes** | 323 (232 unitários + 91 de integração), todos verdes · 92% de cobertura |
+| **Testes** | 326 (235 unitários + 91 de integração), todos verdes · 92% de cobertura |
 | **Endpoints** | 26, todos documentados em OpenAPI |
 | **Migrations** | 3, incluindo gatilho de imutabilidade e índices funcionais |
 | **Qualidade estática** | `ruff check`, `ruff format` e `mypy app` sem apontamentos |
 | **Deriva de schema** | `alembic check` sem diferenças entre modelo e banco |
+
+---
+
+## A API de pé
+
+Com a pilha no ar, a documentação interativa fica em `/docs` — todos os
+endpoints com esquema, exemplos e o botão de autenticar:
+
+![Documentação interativa do Sentinela](docs/imagens/documentacao.png)
+
+Os 26 endpoints, agrupados por assunto. `Auditoria` é somente leitura até para
+quem administra: a trilha se consulta, não se edita.
+
+![Os endpoints do Sentinela](docs/imagens/endpoints.png)
+
+> A página é servida pela própria aplicação, e não pelo `/docs` embutido do
+> FastAPI, para que a CSP possa declarar o hash do script que ela carrega — ver
+> `app/api/docs.py`. Com a política estrita e sem essa assinatura, a
+> documentação abre **em branco**, com resposta 200 e nenhum erro no log.
 
 ---
 
@@ -60,7 +79,7 @@ Este domínio — contratos, vencimento, renovação — também está resolvido
 [vigencia](https://github.com/CaioCodes1/vigencia), em **Java/Spring**. A
 repetição é deliberada: o que interessa são as decisões que **mudam quando o
 ecossistema muda**. Aqui, o mapeamento imperativo do SQLAlchemy mantém o domínio
-sem nenhuma dependência de framework, e é isso que permite a 232 dos 323 testes
+sem nenhuma dependência de framework, e é isso que permite a 235 dos 326 testes
 rodarem sem banco; no Java, o mesmo objetivo pede outro arranjo. Comparar os dois
 diz mais sobre o critério de cada escolha do que qualquer um deles isolado.
 
@@ -228,7 +247,7 @@ herdar de uma classe do ORM. A partir daí, a regra de negócio só roda com o
 SQLAlchemy configurado: um teste de "contrato cancelado não pode ser renovado"
 passa a precisar de banco.
 
-Aqui ele é `Contract(...)` e uma chamada de método. É por isso que 232 dos 323
+Aqui ele é `Contract(...)` e uma chamada de método. É por isso que 235 dos 326
 testes rodam em **6 segundos**, sem Docker e sem migration. O custo e as
 alternativas estão no [ADR-002](docs/DECISOES.md#adr-002).
 
@@ -722,11 +741,13 @@ pytest
 
 ### Como a suíte está dividida, e por quê
 
-**`tests/unit/` — 232 testes, sem banco.** Regras de data e renovação,
+**`tests/unit/` — 235 testes, sem banco.** Regras de data e renovação,
 dígito verificador de CPF/CNPJ, aritmética monetária em `Decimal`, política de
 senha, todas as formas de rejeitar um JWT, a matriz de RBAC como *propriedade*,
 janela deslizante sob concorrência real de threads, retry e disjuntor com
-`respx`, e o ciclo de vida completo do contrato sobre repositórios em memória.
+`respx`, o ciclo de vida completo do contrato sobre repositórios em memória, e
+a assinatura do script da documentação na CSP — um defeito que só aparecia
+abrindo a página no navegador.
 
 **`tests/integration/` — 91 testes, com PostgreSQL.** O que só o banco prova:
 índice único, `ON CONFLICT`, gatilho de imutabilidade, trava otimista,
