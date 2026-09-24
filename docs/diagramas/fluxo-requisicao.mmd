@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant C as Cliente
+    participant MW as Middlewares
+    participant DEP as Dependências
+    participant SVC as Serviço
+    participant UOW as Unidade de trabalho
+    participant DB as PostgreSQL
+
+    C->>MW: POST /api/v1/contracts + Bearer
+    MW->>MW: gera request_id, mede tempo
+    MW->>MW: rate limit por IP (barra antes de tocar no banco)
+    MW->>DEP: segue
+    DEP->>DEP: valida JWT (assinatura, exp, iss, aud, typ)
+    DEP->>DB: carrega o usuário (papel vem do banco, não do token)
+    DEP->>DEP: RBAC — exige contract:create
+    Note over DEP: negativa vira 403 **e** linha de auditoria
+    DEP->>SVC: chama o caso de uso
+    SVC->>UOW: abre a transação
+    SVC->>UOW: contrato + parcelas + histórico + auditoria
+    UOW->>DB: COMMIT (tudo ou nada)
+    SVC-->>C: 201 Created
+    MW-->>C: + cabeçalhos de segurança + X-Request-Id

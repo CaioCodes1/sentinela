@@ -1,0 +1,13 @@
+stateDiagram-v2
+    [*] --> ACTIVE: criação
+    ACTIVE --> EXPIRING: entra na janela de alerta
+    ACTIVE --> EXPIRED: passou do término
+    EXPIRING --> EXPIRED: passou do término
+    ACTIVE --> RENEWED: renovação
+    EXPIRING --> RENEWED: renovação
+    EXPIRED --> RENEWED: renovação retroativa
+    ACTIVE --> CANCELLED: cancelamento
+    EXPIRING --> CANCELLED: cancelamento
+    EXPIRED --> CANCELLED: cancelamento
+    RENEWED --> [*]: terminal
+    CANCELLED --> [*]: terminal

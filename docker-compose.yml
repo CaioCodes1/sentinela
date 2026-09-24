@@ -1,0 +1,141 @@
+# ---------------------------------------------------------------------------
+# Pilha completa: PostgreSQL + API + provedor de notificações simulado.
+#
+#   cp .env.example .env    # e preencha JWT_SECRET e ADMIN_INITIAL_PASSWORD
+#   docker compose up -d --build
+#   docker compose logs -f api
+#
+# Duas decisões que merecem explicação.
+#
+# **Nenhum bind mount.** Todo arquivo que os contêineres precisam entra pela
+# imagem, via COPY; o único volume é nomeado, para os dados do PostgreSQL. Isso
+# torna a pilha portátil — em particular, ela sobe no Docker Desktop do Windows,
+# que recusa bind mount de caminho do host (`invalid volume specification`) e
+# quebra qualquer compose que monte arquivo de configuração.
+#
+# **Nenhum segredo com valor literal.** Tudo vem do `.env`, e a sintaxe
+# `${VAR:?mensagem}` faz o compose **recusar subir** quando a variável está
+# faltando, com a mensagem aparecendo no terminal. Sem o `:?`, um `JWT_SECRET`
+# esquecido vira string vazia e a API sobe assinando token com chave vazia.
+# ---------------------------------------------------------------------------
+
+name: sentinela
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentinela-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sentinela}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:-sentinela}
+      # Checksums de página: detectam corrupção silenciosa de disco na leitura,
+      # em vez de deixá-la se propagar para o backup.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # `-U` e `-d` explícitos: sem eles o `pg_isready` usa o usuário do
+      # sistema, responde "aceita conexões" cedo demais, e a API tenta conectar
+      # antes de o banco da aplicação existir.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentinela} -d ${POSTGRES_DB:-sentinela}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    # A porta fica exposta só no laço local. Sem o `127.0.0.1:`, o Docker abre
+    # a porta em todas as interfaces — inclusive na rede da cafeteria.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - sentinela
+
+  notifier:
+    build:
+      context: .
+      dockerfile: docker/notifier.Dockerfile
+    container_name: sentinela-notifier
+    restart: unless-stopped
+    environment:
+      STUB_API_KEY: ${NOTIFIER_API_KEY:?defina NOTIFIER_API_KEY no .env}
+      # Taxas de falha para a demonstração. Zere para um ambiente previsível.
+      STUB_FAILURE_RATE: ${STUB_FAILURE_RATE:-0.25}
+      STUB_TIMEOUT_RATE: ${STUB_TIMEOUT_RATE:-0.10}
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - sentinela
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    container_name: sentinela-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        # `service_healthy`, não `service_started`: o contêiner do PostgreSQL
+        # "iniciou" segundos antes de aceitar conexão, e a API subiria contra
+        # um banco que ainda não responde.
+        condition: service_healthy
+      notifier:
+        condition: service_started
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DEBUG: "false"
+      DOCS_ENABLED: ${DOCS_ENABLED:-true}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: "true"
+
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sentinela}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sentinela}
+
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env - use `python -m app.cli gerar-segredo`}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-15}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
+      BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+
+      NOTIFIER_BASE_URL: http://notifier:9090
+      NOTIFIER_API_KEY: ${NOTIFIER_API_KEY}
+
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      DAILY_JOB_HOUR: ${DAILY_JOB_HOUR:-3}
+      EXPIRATION_ALERT_DAYS: ${EXPIRATION_ALERT_DAYS:-30,15,7,1}
+
+      ADMIN_INITIAL_EMAIL: ${ADMIN_INITIAL_EMAIL:-admin@sentinela.local}
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:?defina ADMIN_INITIAL_PASSWORD no .env}
+
+      # A API está atrás do Docker; confiar em X-Forwarded-For só faz sentido
+      # com um proxy reverso de verdade na frente.
+      TRUST_PROXY_HEADERS: ${TRUST_PROXY_HEADERS:-false}
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    networks:
+      - sentinela
+    # Endurecimento do contêiner. Cada linha fecha um caminho conhecido de
+    # escalada, e nenhuma delas atrapalha esta aplicação.
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      # Com o sistema de arquivos em somente-leitura, o processo ainda precisa
+      # de espaço temporário — daí o tmpfs, que vive em memória e some no
+      # encerramento.
+      - /tmp:size=64m
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          # Teto de memória: sem ele, um vazamento na aplicação consome a RAM
+          # do host inteiro em vez de derrubar só o contêiner.
+          memory: 512M
+
+volumes:
+  postgres_data:
+    name: sentinela_postgres_data
+
+networks:
+  sentinela:
+    name: sentinela
+    driver: bridge

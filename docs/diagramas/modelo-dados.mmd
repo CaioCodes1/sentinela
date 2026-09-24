@@ -1,0 +1,48 @@
+erDiagram
+    USERS ||--o{ REFRESH_TOKENS : "sessões"
+    USERS ||--o{ AUDIT_LOGS : "autoria (RESTRICT)"
+    CLIENTS ||--o{ CONTRACTS : "titular (RESTRICT)"
+    CONTRACTS ||--o{ INSTALLMENTS : "mensalidades (CASCADE)"
+    CONTRACTS ||--o{ CONTRACT_EVENTS : "histórico (CASCADE)"
+    CONTRACTS ||--o{ NOTIFICATIONS : "avisos (CASCADE)"
+    CONTRACTS ||--o| CONTRACTS : "renovado_para"
+
+    USERS {
+        uuid id PK
+        varchar email UK "único por lower(email)"
+        varchar password_hash "bcrypt; CHECK impede texto puro"
+        varchar role "ADMIN | OPERATOR | AUDITOR"
+        int failed_login_attempts
+        timestamptz locked_until
+    }
+    CONTRACTS {
+        uuid id PK
+        varchar number UK
+        numeric monthly_amount "NUMERIC(14,2), nunca float"
+        date start_date
+        date end_date
+        int due_day "1..31, resolvido por mês"
+        varchar status
+        int version "trava otimista"
+    }
+    INSTALLMENTS {
+        uuid id PK
+        varchar competence "AAAA-MM"
+        date due_date
+        numeric amount
+        varchar status
+    }
+    NOTIFICATIONS {
+        uuid id PK
+        varchar dedupe_key UK "idempotência da automação"
+        int attempts
+        varchar status "PENDING|SENT|FAILED|DEAD_LETTER"
+    }
+    AUDIT_LOGS {
+        uuid id PK
+        timestamptz occurred_at
+        varchar action
+        varchar actor_email "cópia do momento do ato"
+        varchar ip_address
+        jsonb details
+    }

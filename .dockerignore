@@ -1,0 +1,23 @@
+.venv/
+__pycache__/
+*.py[cod]
+.git/
+.github/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+# O .env fica de fora da imagem de propósito: segredo entra por variável de
+# ambiente ou por gerenciador de segredos, nunca embutido numa camada — quem
+# tiver a imagem tem o arquivo, e camada apagada continua recuperável.
+.env
+.env.*
+!.env.example
+docs/
+tests/
+*.md
+# O README precisa entrar: o `pyproject.toml` declara `readme = "README.md"`,
+# e o `pip install .` falha sem ele. A exceção vem depois do `*.md` porque a
+# última regra que casa é a que vale.
+!README.md

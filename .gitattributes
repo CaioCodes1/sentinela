@@ -1,0 +1,7 @@
+# Normaliza para LF no repositório. Sem isto, o entrypoint.sh sai com CRLF na
+# cópia de trabalho e o container Linux recusa o shebang com um erro que não
+# menciona a causa ("no such file or directory" apontando para um arquivo que existe).
+* text=auto eol=lf
+
+# Scripts do PowerShell são a exceção: ficam CRLF de propósito.
+*.ps1 text eol=crlf

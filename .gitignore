@@ -1,0 +1,28 @@
+# Segredos — nunca versionar
+.env
+.env.local
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Editores e SO
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store
+
+# Saída local
+*.log

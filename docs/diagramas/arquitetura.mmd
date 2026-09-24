@@ -1,0 +1,53 @@
+flowchart TB
+    subgraph EXT["Mundo externo"]
+        HTTP["Cliente HTTP"]
+        CRON["Agendador<br/>(APScheduler)"]
+        CLI["Linha de comando"]
+        PROV["Provedor de<br/>notificações"]
+        DB[("PostgreSQL")]
+    end
+
+    subgraph API["app/api — entrada"]
+        ROUTES["Rotas + schemas Pydantic"]
+        DEPS["Dependências:<br/>autenticação, RBAC, UoW"]
+        MW["Middlewares:<br/>contexto, cabeçalhos, rate limit"]
+    end
+
+    subgraph SVC["app/services — casos de uso"]
+        S1["ContractService"]
+        S2["ClientService"]
+        S3["AuthService"]
+        S4["AutomationService"]
+        S5["NotificationService"]
+        S6["AuditService"]
+    end
+
+    subgraph DOM["app/domain — o núcleo"]
+        ENT["Entidades<br/>(sem SQLAlchemy)"]
+        RUL["Regras puras"]
+        VO["Objetos de valor"]
+        PORT["Portas<br/>(Protocol)"]
+    end
+
+    subgraph INF["app/infrastructure — adaptadores"]
+        REPO["Repositórios<br/>SQLAlchemy"]
+        UOW["Unidade de trabalho"]
+        GW["Gateway HTTP<br/>retry + disjuntor"]
+        MAP["Mapeamento imperativo"]
+    end
+
+    HTTP --> MW --> ROUTES --> DEPS --> SVC
+    CRON --> S4
+    CLI --> SVC
+    SVC --> DOM
+    SVC -.->|depende da abstração| PORT
+    REPO -.->|implementa| PORT
+    GW -.->|implementa| PORT
+    REPO --> UOW --> DB
+    MAP --- ENT
+    GW --> PROV
+
+    style DOM fill:#1e3a5f,stroke:#4a90d9,color:#fff
+    style SVC fill:#2d4a22,stroke:#6aa84f,color:#fff
+    style INF fill:#4a3520,stroke:#d9974a,color:#fff
+    style API fill:#3d2a4a,stroke:#a86ad9,color:#fff

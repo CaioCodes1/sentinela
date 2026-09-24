@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant U as Usuário
+    participant A as API
+    participant D as Banco
+
+    U->>A: POST /auth/login
+    A->>D: grava refresh #1 (hash, família F)
+    A-->>U: access + refresh #1
+
+    U->>A: POST /auth/refresh (#1)
+    A->>D: revoga #1, grava #2 (mesma família F)
+    A-->>U: access + refresh #2
+
+    Note over U,A: um atacante capturou o #1 e tenta usar
+
+    U->>A: POST /auth/refresh (#1, já revogado)
+    A->>D: REVOGA A FAMÍLIA F INTEIRA
+    A->>D: audita TOKEN_REUSE_DETECTED
+    A-->>U: 401 — sessão encerrada por segurança

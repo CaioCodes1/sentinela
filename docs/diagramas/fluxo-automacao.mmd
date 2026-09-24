@@ -1,0 +1,32 @@
+flowchart TD
+    START(["APScheduler · 03:00 UTC"]) --> RUN["cria JobRun (RUNNING)"]
+    RUN --> LOCK{"pg_try_advisory_xact_lock<br/>obtida?"}
+    LOCK -->|não| SKIP["JobRun = SKIPPED<br/>sai sem erro"]
+    LOCK -->|sim| AUD1["audita JOB_STARTED + COMMIT"]
+
+    AUD1 --> LOOP["para cada contrato vigente<br/>(carregado com o cliente junto)"]
+
+    LOOP --> T1{"dias restantes<br/>∈ {30,15,7,1}?"}
+    T1 -->|sim| N1["enfileira CONTRACT_EXPIRING<br/>dedupe_key = tipo:contrato:d30"]
+    T1 -->|não| T2
+    N1 --> T2{"end_date < hoje?"}
+
+    T2 -->|sim + auto_renew| R1["renova: cria sucessor"]
+    T2 -->|sim| E1["status = EXPIRED<br/>+ evento + auditoria + aviso"]
+    T2 -->|não| T3{"dentro da janela<br/>de alerta?"}
+    T3 -->|sim| X1["status = EXPIRING"]
+    T3 -->|não| NEXT
+
+    R1 --> NEXT["próximo contrato"]
+    E1 --> NEXT
+    X1 --> NEXT
+    NEXT --> OVER["parcelas com vencimento < hoje<br/>→ OVERDUE + cobrança"]
+
+    OVER --> CM[("COMMIT")]
+    CM --> DISP["despacha a fila de notificações"]
+    DISP --> FIN["JobRun = SUCCESS + stats<br/>audita JOB_FINISHED"]
+    FIN --> END(["fim"])
+
+    style LOCK fill:#4a3520,stroke:#d9974a,color:#fff
+    style CM fill:#1e3a5f,stroke:#4a90d9,color:#fff
+    style SKIP fill:#4a2020,stroke:#d94a4a,color:#fff

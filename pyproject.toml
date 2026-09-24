@@ -1,0 +1,116 @@
+[project]
+name = "sentinela"
+version = "1.0.0"
+description = "Plataforma de automação de contratos, mensalidades e renovações, com segurança e auditoria como requisito de primeira classe"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Caio Martins" }]
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "email-validator>=2.2.0",
+    "SQLAlchemy>=2.0.36",
+    "psycopg[binary]>=3.2.3",
+    "alembic>=1.14.0",
+    "PyJWT>=2.10.0",
+    "bcrypt>=4.2.0",
+    "httpx>=0.28.0",
+    "APScheduler>=3.10.4",
+    "python-multipart>=0.0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+    "types-python-dateutil",
+    "freezegun>=1.5.0",
+    "respx>=0.22.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+sentinela = "app.cli:main"
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+# ---------------------------------------------------------------------------
+# Qualidade estática. O portão de segurança do CI usa estas mesmas regras:
+# o que reprova aqui reprova lá, para o desenvolvedor não descobrir no push.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "S",   # bandit: regras de segurança
+    "C4",  # comprehensions
+    "DTZ", # datetimes sem timezone
+    "RUF",
+]
+ignore = [
+    "S101", # assert: legítimo dentro de tests/
+    "B008", # Depends(...) no default é o idioma do FastAPI
+]
+
+[tool.ruff.lint.per-file-ignores]
+# `tests/**` e não `tests/*`: o glob de um asterisco casa só os filhos
+# diretos, e a suíte inteira vive em `tests/unit/` e `tests/integration/`.
+"tests/**" = [
+    "S105",  # senha literal em teste é o próprio dado do teste
+    "S106",
+    "S311",
+    "DTZ011",  # `date.today()` em teste é intencional: o cenário é relativo a hoje
+    "C408",
+    "RUF012",
+]
+# O stub do provedor externo simula falha aleatória; `random` é adequado.
+"notifier_stub/**" = ["S311"]
+# Migration é registro histórico: não se reformata depois de aplicada.
+"alembic/versions/*" = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+plugins = []
+exclude = "(alembic/versions|tests)"
+
+# O APScheduler não publica marcador `py.typed`. Ignorar a falta de stubs
+# **deste módulo** é diferente de ligar `ignore_missing_imports` global, que
+# esconderia erro de import de qualquer dependência.
+[[tool.mypy.overrides]]
+module = ["apscheduler.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: exige um PostgreSQL acessível via TEST_DATABASE_URL",
+]
+# Sem `error::DeprecationWarning`: transformaria em falha qualquer aviso de
+# biblioteca de terceiro, e a suíte passaria a quebrar em atualização de
+# dependência por motivo que não é defeito deste projeto.
+filterwarnings = ["ignore::DeprecationWarning:starlette.*"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/cli.py", "app/jobs/scheduler.py"]
