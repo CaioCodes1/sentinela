@@ -45,21 +45,22 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# O `setuptools` do Python **do sistema** sai da imagem final.
+# O pip do Python **do sistema** sai da imagem final.
 #
-# A aplicação roda inteiramente do `/opt/venv`, que tem o seu próprio
-# (atualizado no estágio de build). O do sistema fica para trás na versão que
-# a imagem base trouxer — hoje a 70.3.0, com duas HIGH, entre elas a
-# CVE-2025-47273 de travessia de caminho — e reprova o portão do Trivy sem que
-# uma única linha do projeto o utilize.
+# Não é higiene abstrata: o pip 25.0.1 da imagem base empacota cópias próprias
+# de outras bibliotecas em `pip/_vendor/`, e são elas que aparecem no scanner —
+# msgpack 1.1.2 e o `pkg_resources` do setuptools 70.3.0, duas HIGH. Nenhuma é
+# dependência deste projeto: a aplicação roda do `/opt/venv`, que traz o seu
+# próprio pip, mais novo e sem esses achados.
 #
-# Remover é melhor que atualizar: o que não está na imagem não volta a virar
-# CVE na próxima publicação. O `|| true` cobre a base parar de trazê-lo, coisa
-# que as imagens `python:` vêm fazendo aos poucos.
+# Remover também fecha uma porta: contêiner com instalador de pacotes à mão dá
+# a quem conseguir execução remota um jeito pronto de buscar ferramenta nova.
+# É o mesmo motivo de o compilador ficar no estágio de build.
+#
 # Caminho absoluto de propósito: o `PATH` desta imagem já aponta para
 # `/opt/venv/bin`, que só é copiado mais abaixo. Escrever `python` aqui
 # funcionaria por acidente de ordem das camadas.
-RUN /usr/local/bin/python -m pip uninstall -y setuptools wheel 2>/dev/null || true
+RUN /usr/local/bin/python -m pip uninstall -y pip setuptools wheel 2>/dev/null || true     && rm -rf /usr/local/lib/python3.12/site-packages/pip               /usr/local/lib/python3.12/site-packages/pip-*.dist-info
 
 # Usuário sem privilégios, criado antes de copiar o código.
 #
